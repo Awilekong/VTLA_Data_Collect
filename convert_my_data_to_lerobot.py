@@ -127,12 +127,12 @@ def main(data_dir: str = data_dir, *, push_to_hub: bool = False, task_descriptio
                         "wrist_image": wrist_image,
                         "state": state,
                         "actions": action,  # 注意这里变成了actions而不是action
-                        "task": task_description,  # 添加任务描述作为task特征
+                        # "task": [task_description.encode('utf-8')],  # 添加任务描述作为task特征
                     }
                 )
             
             # 保存episode，使用默认任务描述或文件名作为任务
-            dataset.save_episode(task=task_description)
+            dataset.save_episode(episode_tasks=[task_description])
             print(f"  已保存episode: {task_description}")
 
     # 整合数据集，跳过计算统计信息

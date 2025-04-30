@@ -84,7 +84,7 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 - `observation.images.image`: 全局视角RGB图像 (256x256x3)
 - `observation.images.wrist_image`: 腕部视角RGB图像 (256x256x3)
 - `observation.state`: 机器人状态 (8维：7个关节角度 + 1个夹爪宽度)
-- `action`: 机器人动作 (7维：3个位置 + 4个四元数)
+- `action`: 机器人动作 (与state相同，8维：7个关节角度 + 1个夹爪宽度)
 - `timestamps`: 时间戳
 
 ## 项目结构

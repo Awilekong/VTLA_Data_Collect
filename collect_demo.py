@@ -47,6 +47,7 @@ class DataCollector:
             "observation.images.wrist_image": [],
             "observation.state": [],
             "action": [],
+            "desired_action": [],
             "timestamps": []
         }
         self.robot = RobotInterface(ip_address="192.168.1.100")
@@ -156,6 +157,33 @@ class DataCollector:
         
         return np.concatenate([pos, quat]).astype(np.float32)
     
+    def _get_robot_desired_action(self):
+        """获取机械臂期望的关节角位置和夹爪宽度
+        
+        Returns:
+            numpy.ndarray: 形状为(8,)的浮点数数组，包含7个期望关节角和1个夹爪目标宽度
+        """
+        # 获取期望的关节角度
+        desired_joint_positions = self.robot.get_desired_joint_positions()
+        
+        # 如果没有设置期望关节位置，则使用当前关节位置
+        if desired_joint_positions is None:
+            desired_joint_positions = self.robot.get_joint_positions()
+        
+        # 获取夹爪的目标宽度
+        gripper_params = self.gripper.get_last_gripper_goto_params()
+        
+        # 如果没有设置夹爪参数，则使用当前夹爪宽度
+        if gripper_params is None:
+            gripper_width = self.gripper.get_state().width
+        else:
+            gripper_width = gripper_params["width"]
+        
+        # 将期望关节角和夹爪目标宽度拼接
+        desired_state = np.concatenate([desired_joint_positions, np.array([gripper_width])]).astype(np.float32)
+        
+        return desired_state
+    
     def _on_key_press(self, key):
         """pynput键盘按下回调函数"""
         if hasattr(key, 'char') and key.char == '\x1b':  # ESC键
@@ -182,6 +210,7 @@ class DataCollector:
         wrist_img = self._get_wrist_camera_image()
         robot_state = self._get_robot_state()
         robot_action = self._get_robot_action()
+        robot_desired_action = self._get_robot_desired_action()
         timestamp = time.time()
         
         # 添加到缓冲区
@@ -189,6 +218,7 @@ class DataCollector:
         self.data_buffer["observation.images.wrist_image"].append(wrist_img)
         self.data_buffer["observation.state"].append(robot_state)
         self.data_buffer["action"].append(robot_action)
+        self.data_buffer["desired_action"].append(robot_desired_action)
         self.data_buffer["timestamps"].append(timestamp)
         
         return timestamp
@@ -284,6 +314,11 @@ class DataCollector:
             # 保存机械臂动作
             f.create_dataset("action", 
                             data=np.array(self.data_buffer["action"]),
+                            dtype='float32')
+            
+            # 保存机械臂期望状态
+            f.create_dataset("desired_action", 
+                            data=np.array(self.data_buffer["desired_action"]),
                             dtype='float32')
             
         print(f"数据成功保存到 {filename}")

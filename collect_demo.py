@@ -27,13 +27,14 @@ except ImportError:
 class DataCollector:
     """机械臂遥操作数据采集器"""
     
-    def __init__(self, freq=10, save_dir="collected_data_right"):
+    def __init__(self, freq=10, save_dir="collected_data_right", max_buffer_size=1000):
         """
         初始化数据采集器
         
         Args:
             freq: 采集频率 (Hz)
             save_dir: 数据保存目录
+            max_buffer_size: 数据缓冲区最大帧数，超过此值会触发自动保存
         """
         self.serial_1 = "136622074722"  # 全局相机序列号
         self.serial_2 = "233622071355"  # 腕部相机序列号
@@ -42,6 +43,7 @@ class DataCollector:
         self.save_dir = save_dir
         self.is_collecting = False
         self.exit_flag = False
+        self.max_buffer_size = max_buffer_size
         self.data_buffer = {
             "observation.images.image": [],
             "observation.images.wrist_image": [],
@@ -178,28 +180,14 @@ class DataCollector:
         
         return desired_state
     
-    def _on_key_press(self, key):
-        """pynput键盘按下回调函数"""
-        if hasattr(key, 'char') and key.char == '\x1b':  # ESC键
-            self.esc_pressed = True
-            return False  # 停止监听
-        return True
-        
-    def _check_esc_pressed(self):
-        """检查是否按下ESC键"""
-        if USE_READCHAR:
-            # 使用readchar的非阻塞读取方式
-            import sys, select
-            if select.select([sys.stdin], [], [], 0)[0]:
-                char = readchar.readchar()
-                return char == readchar.key.ESC
-            return False
-        else:
-            # 使用pynput的标志变量
-            return self.esc_pressed
-    
     def _collect_data_point(self):
         """采集一帧数据"""
+        # 检查缓冲区大小，如果超过最大限制，自动保存数据
+        if len(self.data_buffer["timestamps"]) >= self.max_buffer_size:
+            print(f"\n缓冲区已达到最大限制({self.max_buffer_size}帧)，正在自动保存数据...")
+            self._save_data()
+            print("数据已保存，继续采集...")
+            
         global_img = self._get_global_camera_image()
         wrist_img = self._get_wrist_camera_image()
         robot_state = self._get_robot_state()
@@ -252,7 +240,8 @@ class DataCollector:
         print(f"\n采集结束，共采集 {count} 帧数据，平均采集频率: {avg_freq:.2f} Hz")
         
         # 采集结束后保存数据
-        self._save_data()
+        if count > 0:
+            self._save_data()
     
     def _save_data(self):
         """将采集的数据保存为HDF5格式"""
@@ -292,13 +281,13 @@ class DataCollector:
                             dtype='float32')
             
             # 保存机械臂动作
-            f.create_dataset("action", 
-                            data=np.array(self.data_buffer["action"]),
+            f.create_dataset("observation.ee_pose", 
+                            data=np.array(self.data_buffer["observation.ee_pose"]),
                             dtype='float32')
             
             # 保存机械臂期望状态
-            f.create_dataset("desired_action", 
-                            data=np.array(self.data_buffer["desired_action"]),
+            f.create_dataset("action", 
+                            data=np.array(self.data_buffer["action"]),
                             dtype='float32')
             
         print(f"数据成功保存到 {filename}")
@@ -348,77 +337,63 @@ class DataCollector:
             self.wrist_cam_pipeline.stop()
 
 def wait_for_space():
-    """等待用户按下空格键"""
+    """等待用户按下空格键，使用简化的逻辑"""
+    print("请按空格键开始采集...")
+    
     if USE_READCHAR:
         while True:
-            try:
-                key = readchar.readkey()
-                if key == ' ':  # 空格键
-                    break
-            except Exception as e:
-                print(f"读取按键出错: {e}")
-                # 回退到阻塞式输入
-                input_key = input("请按回车确认开始采集...")
-                break
-    else:
-        try:
-            # 使用pynput监听空格键
-            space_pressed = [False]
-            
-            def on_press(key):
-                if hasattr(key, 'char') and key.char == ' ':  # 空格键
-                    space_pressed[0] = True
-                    return False
-                return True
-            
-            with kb.Listener(on_press=on_press) as listener:
-                listener.join(timeout=600)  # 最多等待10分钟
-                if not space_pressed[0]:
-                    # 如果超时还没按下空格，使用阻塞式输入
-                    input_key = input("请按回车确认开始采集...")
-        except Exception as e:
-            print(f"键盘监听出错: {e}")
-            # 回退到阻塞式输入
-            input_key = input("请按回车确认开始采集...")
-
-def wait_for_enter_to_stop():
-    """等待用户按下回车键来停止采集"""
-    print("\n数据采集中，按回车键结束该条数据采集...")
-    if USE_READCHAR:
-        while True:
-            try:
-                key = readchar.readkey()
-                if key == readchar.key.ENTER:
-                    return
-            except Exception as e:
-                print(f"读取按键出错: {e}")
-                # 回退到阻塞式输入
-                input("请按回车键结束采集...")
+            key = readchar.readkey()
+            if key == ' ':  # 空格键
                 return
     else:
-        try:
-            # 使用pynput监听回车键
-            enter_pressed = [False]
-            
-            def on_press(key):
-                if key == kb.Key.enter:
-                    enter_pressed[0] = True
-                    return False
-                return True
-            
-            with kb.Listener(on_press=on_press) as listener:
-                listener.join(timeout=3600)  # 最多等待1小时
-                if not enter_pressed[0]:
-                    # 如果超时还没按下回车，使用阻塞式输入
-                    input("超时，请按回车键结束采集...")
-        except Exception as e:
-            print(f"键盘监听出错: {e}")
-            # 回退到阻塞式输入
-            input("请按回车键结束采集...")
+        # 使用更简单的事件标志
+        space_pressed = threading.Event()
+        
+        def on_press(key):
+            if hasattr(key, 'char') and key.char == ' ':  # 空格键
+                space_pressed.set()
+                return False  # 停止监听
+            return True
+        
+        with kb.Listener(on_press=on_press) as listener:
+            # 等待空格键被按下或超时
+            space_pressed.wait(timeout=600)  # 10分钟超时
+            if not space_pressed.is_set():
+                print("等待超时，默认开始采集")
+
+def wait_for_enter_to_stop():
+    """等待用户按下回车键来停止采集，使用简化的逻辑"""
+    print("\n数据采集中，按回车键结束该条数据采集...")
+    
+    if USE_READCHAR:
+        while True:
+            key = readchar.readkey()
+            if key == readchar.key.ENTER:
+                return
+    else:
+        # 使用更简单的事件标志
+        enter_pressed = threading.Event()
+        
+        def on_press(key):
+            if key == kb.Key.enter:
+                enter_pressed.set()
+                return False  # 停止监听
+            return True
+        
+        with kb.Listener(on_press=on_press) as listener:
+            # 等待回车键被按下或超时
+            enter_pressed.wait(timeout=3600)  # 1小时超时
+            if not enter_pressed.is_set():
+                print("等待超时，默认结束采集")
 
 def main():
     """主函数"""
-    collector = DataCollector(freq=10)
+    # 初始化数据采集器的参数
+    freq = 10
+    max_buffer_size = 500
+    
+    # 初始化数据采集器
+    collector = DataCollector(freq=freq, max_buffer_size=max_buffer_size)
     
     print("=========================================")
     print("       机械臂遥操作数据采集程序")
@@ -426,7 +401,8 @@ def main():
     print("空格键开始采集，回车键结束该条数据采集")
     print("结束后可再次按空格键开始新一条数据采集")
     print("按Ctrl+C退出整个采集程序")
-    print("采集频率设置为10Hz，数据将保存为HDF5格式")
+    print(f"采集频率设置为{freq}Hz，数据将保存为HDF5格式")
+    print(f"缓冲区限制: {max_buffer_size}帧 (约{max_buffer_size/freq:.1f}秒数据)")
     
     try:
         while True:

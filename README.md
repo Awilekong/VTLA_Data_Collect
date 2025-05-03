@@ -109,9 +109,9 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 
 采集的数据文件命名格式为：
 ```
-pick_data_年月日时分秒_帧数frames.h5
+pick_data_%Y%m%d_%H%M%S_${count}frames.h5
 ```
-例如：`pick_data_2023年12月01日23时59分59秒_100frames.h5`
+例如：`pick_data_20250503235959_100frames.h5`
 
 ## ⚠️ 注意事项
 

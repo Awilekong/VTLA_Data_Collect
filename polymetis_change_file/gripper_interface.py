@@ -46,7 +46,7 @@ class GripperInterface:
         self._command_thr.start()
         
         # 添加记录goto参数的属性
-        self.last_gripper_goto_params = None
+        self.desired_gripper_goto_params = None
 
 
     def _command_executor(self):
@@ -139,10 +139,10 @@ class GripperInterface:
             blocking=blocking,
         )
 
-    def get_last_gripper_goto_params(self):
+    def get_desired_gripper_goto_params(self):
         """返回最近一次goto命令的参数
         
         Returns:
             dict: 包含width, speed, force, blocking参数的字典，如果尚未调用goto则返回None
         """
-        return self.last_gripper_goto_params
+        return self.desired_gripper_goto_params

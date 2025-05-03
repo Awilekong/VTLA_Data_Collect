@@ -170,7 +170,7 @@ class DataCollector:
             desired_joint_positions = self.robot.get_joint_positions()
         
         # 获取夹爪的目标宽度
-        gripper_params = self.gripper.get_last_gripper_goto_params()
+        gripper_params = self.gripper.get_desired_gripper_goto_params()
         
         # 如果没有设置夹爪参数，则使用当前夹爪宽度
         if gripper_params is None:

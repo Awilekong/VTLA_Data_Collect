@@ -90,8 +90,7 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 - `observation.images.wrist_image`: 腕部视角RGB图像 (256x256x3)
 - `observation.state`: 机器人状态 (8维：7个关节角度 + 1个夹爪宽度)
 - `observation.ee_pose`: 机械臂末端位姿 (7维：3位置 + 4四元数)
-- `action`: 机器人动作 (8维：7个关节角度 + 1个夹爪宽度)
-- `desired_action`: 期望的机器人动作
+- `action`: 机器人动作 (8维：7个关节角度 + 1个夹爪宽度，取自gello遥操映射后数据)
 - `timestamps`: 时间戳
 
 ## 📁 项目结构

@@ -1,29 +1,29 @@
-# 机器人遥操作数据采集与转换工具
+# 🤖 机器人遥操作数据采集与转换工具
 
 这个项目提供了一套用于机器人遥操作数据采集和格式转换的工具。主要用于利用RealSense摄像头采集机械臂操作数据，并将数据转换为特定格式(LeRobot格式)。
 
-## 功能特点
+## 🚀 功能特点
 
-- 多摄像头数据采集：同时采集全局视角和机械臂腕部视角的图像
-- 实时机器人状态记录：记录7个关节角度和夹爪宽度
-- 机器人动作捕获：记录末端执行器的位置和姿态（四元数）
-- 高精度时间戳：所有数据均带有同步时间戳
-- 数据格式转换：将采集的HDF5格式数据转换为LeRobot格式
-- 支持上传至Hugging Face Hub：方便数据共享和协作
-- 连续采集功能：支持在同一个程序中连续采集多条数据
+- 📸 多摄像头数据采集：同时采集全局视角和机械臂腕部视角的图像
+- 🤖 实时机器人状态记录：记录7个关节角度和夹爪宽度
+- 🎯 机器人动作捕获：记录末端执行器的位置和姿态（四元数）
+- ⏱️ 高精度时间戳：所有数据均带有同步时间戳
+- 🔄 数据格式转换：将采集的HDF5格式数据转换为LeRobot格式
+- 🌐 支持上传至Hugging Face Hub：方便数据共享和协作
+- 🔄 连续采集功能：支持在同一个程序中连续采集多条数据
 
-## 系统要求
+## 🛠️ 系统要求
 
 - Python 3.8+
 - RealSense摄像头 (两个，用于全局和腕部视角)
 - 支持的机器人：Franka Emika Panda/Research3 (通过Polymetis控制)
 
-## 安装方法
+## 📦 安装方法
 
 1. 克隆此仓库：
 ```bash
-git clone https://github.com/yourusername/collect_demo.git
-cd collect_demo
+git clone https://github.com/Awilekong/Data_Collect_FR3.git
+cd Data_Collect_FR3
 ```
 
 2. 安装依赖项：
@@ -36,15 +36,15 @@ pip install -r requirements.txt
 pip install numpy opencv-python pyrealsense2 h5py readchar pynput polymetis tyro tensorflow tensorflow_datasets
 ```
 
-## 使用方法
+## 📝 使用方法
 
-### 查看RealSense摄像头序列号
+### 🔍 查看RealSense摄像头序列号
 
 ```bash
 python camera.py
 ```
 
-### 数据采集
+### 📹 数据采集
 
 1. 修改`collect_demo.py`中的摄像头序列号和保存目录：
 ```python
@@ -64,14 +64,14 @@ python collect_demo.py
    - 可以立即开始下一条数据采集
    - 按Ctrl+C退出整个采集程序
 
-### 查看采集的数据
+### 👀 查看采集的数据
 
 ```bash
 python viewh5.py
 ```
 注意：请先修改viewh5.py中的文件路径为你的实际数据文件路径。
 
-### 转换数据格式
+### 🔄 转换数据格式
 
 将采集的数据转换为LeRobot格式：
 ```bash
@@ -83,16 +83,18 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --task_descri
 python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 ```
 
-## 数据格式
+## 📊 数据格式
 
 采集的HDF5数据包含以下内容：
 - `observation.images.image`: 全局视角RGB图像 (256x256x3)
 - `observation.images.wrist_image`: 腕部视角RGB图像 (256x256x3)
 - `observation.state`: 机器人状态 (8维：7个关节角度 + 1个夹爪宽度)
-- `action`: 机器人动作 (与state相同，8维：7个关节角度 + 1个夹爪宽度)
+- `observation.ee_pose`: 机械臂末端位姿 (7维：3位置 + 4四元数)
+- `action`: 机器人动作 (8维：7个关节角度 + 1个夹爪宽度)
+- `desired_action`: 期望的机器人动作
 - `timestamps`: 时间戳
 
-## 项目结构
+## 📁 项目结构
 
 - `collect_demo.py`: 主要的数据采集脚本
 - `convert_my_data_to_lerobot.py`: 数据格式转换脚本
@@ -100,9 +102,11 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 - `camera.py`: 检测RealSense摄像头序列号
 - `launch_cmd.txt`: 启动命令记录
 - `polymetis_change_file/`: Polymetis相关修改文件
+  - `robot_interface.py`: 修改后的机器人接口
+  - `gripper_interface.py`: 修改后的夹爪接口
 - `collected_data_*/`: 存放采集的数据
 
-## 数据文件命名
+## 📝 数据文件命名
 
 采集的数据文件命名格式为：
 ```
@@ -110,14 +114,15 @@ pick_data_年月日时分秒_帧数frames.h5
 ```
 例如：`pick_data_2023年12月01日23时59分59秒_100frames.h5`
 
-## 注意事项
+## ⚠️ 注意事项
 
 1. 使用前请确认RealSense摄像头已正确连接并安装驱动
 2. 确保机器人IP地址配置正确
 3. 采集频率默认为10Hz，可在初始化DataCollector时修改
 4. 每条数据采集完成后会自动保存，可以立即开始下一条采集
 5. 使用Ctrl+C可以安全退出采集程序
+6. 本项目使用了修改版的Polymetis接口，请确保正确安装修改后的文件
 
-## 许可证
+## 📄 许可证
 
 MIT License 

@@ -10,6 +10,7 @@
 - 高精度时间戳：所有数据均带有同步时间戳
 - 数据格式转换：将采集的HDF5格式数据转换为LeRobot格式
 - 支持上传至Hugging Face Hub：方便数据共享和协作
+- 连续采集功能：支持在同一个程序中连续采集多条数据
 
 ## 系统要求
 
@@ -57,7 +58,11 @@ self.save_dir = "collected_data_right"  # 数据保存目录
 python collect_demo.py
 ```
 
-3. 按Enter键开始采集，按ESC键停止采集。
+3. 数据采集控制：
+   - 按空格键开始采集一条新数据
+   - 按回车键结束当前数据采集（自动保存）
+   - 可以立即开始下一条数据采集
+   - 按Ctrl+C退出整个采集程序
 
 ### 查看采集的数据
 
@@ -93,13 +98,25 @@ python convert_my_data_to_lerobot.py --data_dir 你的数据目录 --push_to_hub
 - `convert_my_data_to_lerobot.py`: 数据格式转换脚本
 - `viewh5.py`: 查看采集的HDF5数据
 - `camera.py`: 检测RealSense摄像头序列号
+- `launch_cmd.txt`: 启动命令记录
+- `polymetis_change_file/`: Polymetis相关修改文件
 - `collected_data_*/`: 存放采集的数据
+
+## 数据文件命名
+
+采集的数据文件命名格式为：
+```
+pick_data_年月日时分秒_帧数frames.h5
+```
+例如：`pick_data_2023年12月01日23时59分59秒_100frames.h5`
 
 ## 注意事项
 
 1. 使用前请确认RealSense摄像头已正确连接并安装驱动
 2. 确保机器人IP地址配置正确
 3. 采集频率默认为10Hz，可在初始化DataCollector时修改
+4. 每条数据采集完成后会自动保存，可以立即开始下一条采集
+5. 使用Ctrl+C可以安全退出采集程序
 
 ## 许可证
 

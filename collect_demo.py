@@ -46,8 +46,8 @@ class DataCollector:
             "observation.images.image": [],
             "observation.images.wrist_image": [],
             "observation.state": [],
+            "observation.ee_pose": [],
             "action": [],
-            "desired_action": [],
             "timestamps": []
         }
         self.robot = RobotInterface(ip_address="192.168.1.100")
@@ -133,13 +133,12 @@ class DataCollector:
         
         # 获取夹爪宽度
         gripper_width = self.gripper.get_state().width
-        
         # 将关节角和夹爪宽度拼接
         robot_state = np.concatenate([joint_state, np.array([gripper_width])]).astype(np.float32)
         
         return robot_state
     
-    def _get_robot_action(self):
+    def _get_robot_ee_pose(self):
         """获取机械臂末端位姿(3位置+4四元数)
         
         Returns:
@@ -152,8 +151,6 @@ class DataCollector:
         
         return np.concatenate([pos, quat]).astype(np.float32)
     
-<<<<<<< HEAD
-=======
     def _get_robot_desired_action(self):
         """获取机械臂期望的关节角位置和夹爪宽度
         
@@ -201,13 +198,12 @@ class DataCollector:
             # 使用pynput的标志变量
             return self.esc_pressed
     
->>>>>>> 815901b7d1701fc8403bcfcadced37504a65af4d
     def _collect_data_point(self):
         """采集一帧数据"""
         global_img = self._get_global_camera_image()
         wrist_img = self._get_wrist_camera_image()
         robot_state = self._get_robot_state()
-        robot_action = self._get_robot_action()
+        robot_ee_pose = self._get_robot_ee_pose()
         robot_desired_action = self._get_robot_desired_action()
         timestamp = time.time()
         
@@ -215,8 +211,8 @@ class DataCollector:
         self.data_buffer["observation.images.image"].append(global_img)
         self.data_buffer["observation.images.wrist_image"].append(wrist_img)
         self.data_buffer["observation.state"].append(robot_state)
-        self.data_buffer["action"].append(robot_action)
-        self.data_buffer["desired_action"].append(robot_desired_action)
+        self.data_buffer["observation.ee_pose"].append(robot_ee_pose)
+        self.data_buffer["action"].append(robot_desired_action)
         self.data_buffer["timestamps"].append(timestamp)
         
         return timestamp

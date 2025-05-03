@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# Copyright (c) Pengwei Zhang -- 2025.5.3
+# Author: Pengwei Zhang
+# License: MIT
 
 import time
 import h5py

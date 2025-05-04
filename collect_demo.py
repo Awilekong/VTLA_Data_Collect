@@ -55,8 +55,8 @@ class DataCollector:
             "action": [],
             "timestamps": []
         }
-        self.robot_ip = "192.168.1.100"
-        self.gripper_ip = "192.168.1.100"
+        self.robot_ip = "192.168.1.100"     # 机械臂和夹爪的IP地址------修改为你的实际IP地址
+        self.gripper_ip = "192.168.1.100"   # 机械臂和夹爪的IP地址------修改为你的实际IP地址
         # self.robot_ip = "localhost"
         # self.gripper_ip = "localhost"
         self.robot = RobotInterface(ip_address=self.robot_ip)

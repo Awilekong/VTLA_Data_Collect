@@ -55,8 +55,12 @@ class DataCollector:
             "action": [],
             "timestamps": []
         }
-        self.robot = RobotInterface(ip_address="192.168.1.100")
-        self.gripper = GripperInterface(ip_address="192.168.1.100")
+        self.robot_ip = "192.168.1.100"
+        self.gripper_ip = "192.168.1.100"
+        # self.robot_ip = "localhost"
+        # self.gripper_ip = "localhost"
+        self.robot = RobotInterface(ip_address=self.robot_ip)
+        self.gripper = GripperInterface(ip_address=self.gripper_ip)
         
         # 确保存储目录存在
         os.makedirs(save_dir, exist_ok=True)

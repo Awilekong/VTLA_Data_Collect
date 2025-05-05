@@ -30,7 +30,7 @@ except ImportError:
 class DataCollector:
     """机械臂遥操作数据采集器"""
     
-    def __init__(self, freq=10, save_dir="collected_data_right", max_buffer_size=1000):
+    def __init__(self, freq=10, save_dir="/home/ubuntu/workspace/Data_Collect_FR3/collected_data_center", max_buffer_size=1000):
         """
         初始化数据采集器
         
@@ -55,11 +55,12 @@ class DataCollector:
             "action": [],
             "timestamps": []
         }
-        self.robot_ip = "192.168.1.100"     # 机械臂和夹爪的IP地址------修改为你的实际IP地址
-        self.gripper_ip = "192.168.1.100"   # 机械臂和夹爪的IP地址------修改为你的实际IP地址
+        self.robot_ip = "192.168.1.10"     # 机械臂和夹爪的IP地址------修改为你的实际IP地址
+        self.gripper_ip = "192.168.1.10"   # 机械臂和夹爪的IP地址------修改为你的实际IP地址
         # self.robot_ip = "localhost"
         # self.gripper_ip = "localhost"
-        self.robot = RobotInterface(ip_address=self.robot_ip)
+        self.robot = RobotInterface(ip_address=self.robot_ip, enforce_version=False)
+        # ---------修改默认的roboteinterface后，要加上enforce_version=False参数-------- 
         self.gripper = GripperInterface(ip_address=self.gripper_ip)
         
         # 确保存储目录存在

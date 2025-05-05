@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 # 打开 .h5 文件
-with h5py.File('collected_data/robot_data_20250424_160948.h5', 'r') as f:
+with h5py.File('/home/ubuntu/workspace/Data_Collect_FR3/collected_data_center/pick_data_20250505_174350_49frames.h5', 'r') as f:
     images = f['observation.images.image'][:] # shape: (T, H, W, C)
     images_wrist = f['observation.images.wrist_image'][:] # shape: (T, H, W, C)
 

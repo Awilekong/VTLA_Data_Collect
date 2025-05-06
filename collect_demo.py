@@ -30,10 +30,9 @@ except ImportError:
 class DataCollector:
     """机械臂遥操作数据采集器"""
     
-    def __init__(self, freq=10, save_dir="/home/ubuntu/workspace/Data_Collect_FR3/collected_data_center", max_buffer_size=1000):
+    def __init__(self, freq=10, save_dir="/home/ubuntu/workspace/Data_Collect_FR3/collected_data_right", max_buffer_size=1000):
         """
         初始化数据采集器
-        
         Args:
             freq: 采集频率 (Hz)
             save_dir: 数据保存目录

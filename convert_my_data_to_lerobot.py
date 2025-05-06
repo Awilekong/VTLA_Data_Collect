@@ -29,14 +29,15 @@ from pathlib import Path
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 import tyro
 
-REPO_NAME = "Lerobot/franka_pick_center"  # 输出数据集的名称，也用于Hugging Face Hub
-
-task_description = "Pick up the tissue box located in the center of the table."
-data_dir = "collected_data_center"
+REPO_NAME = "Lerobot/franka_pick"  # 输出数据集的名称，也用于Hugging Face Hub
+root = "../data/"  # 数据集的根目录
+task_description = "Pick up the tissue box in the table."
+data_dir = "./all_data_before_trans"  # 数据目录，包含HDF5文件
 
 def main(data_dir: str = data_dir, *, push_to_hub: bool = False, task_description: str = task_description):
     # 清理输出目录中已存在的数据集
-    output_path = Path(REPO_NAME)
+    output_path = Path(root+REPO_NAME)
+    print(f"输出数据集路径: {output_path}")
     try:
         if output_path.exists():
             shutil.rmtree(output_path)
@@ -48,6 +49,7 @@ def main(data_dir: str = data_dir, *, push_to_hub: bool = False, task_descriptio
     # 根据collect_demo.py中的数据格式定义特征
     dataset = LeRobotDataset.create(
         repo_id=REPO_NAME,
+        root = root,
         robot_type="franka",
         fps=10,  # 与collect_demo.py中相同的采集频率
         features={
@@ -68,12 +70,10 @@ def main(data_dir: str = data_dir, *, push_to_hub: bool = False, task_descriptio
             },
             "actions": {
                 "dtype": "float32",
-                "shape": (7,),  # 3个位置 + 4个四元数
+                "shape": (8,),  # 3个位置 + 4个四元数
                 "names": ["actions"],
             },
         },
-        image_writer_threads=10,
-        image_writer_processes=5,
     )
 
     # 获取数据目录中的所有HDF5文件
@@ -127,17 +127,17 @@ def main(data_dir: str = data_dir, *, push_to_hub: bool = False, task_descriptio
                         "wrist_image": wrist_image,
                         "state": state,
                         "actions": action,  # 注意这里变成了actions而不是action
-                        # "task": [task_description.encode('utf-8')],  # 添加任务描述作为task特征
+                        "task": task_description,  # 添加任务描述作为task特征
                     }
                 )
             
             # 保存episode，使用默认任务描述或文件名作为任务
-            dataset.save_episode(episode_tasks=[task_description])
+            dataset.save_episode()
             print(f"  已保存episode: {task_description}")
 
     # 整合数据集，跳过计算统计信息
     print("正在整合数据集...")
-    dataset.consolidate(run_compute_stats=False)
+    # dataset.consolidate(run_compute_stats=False)
     print(f"数据集已成功转换并保存到: {output_path}")
 
     # 可选：上传到Hugging Face Hub

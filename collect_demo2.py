@@ -44,7 +44,8 @@ class DataCollector:
     """机械臂遥操作数据采集器"""
     
     def __init__(self, freq=10, save_dir="./collected_data_right", 
-                 max_buffer_size=1000, save_pointcloud=True, show_tactile=False):
+                 max_buffer_size=1000, save_pointcloud=True, show_tactile=False,
+                 save_tactile_video=False):
         """
         初始化数据采集器
         Args:
@@ -53,6 +54,7 @@ class DataCollector:
             max_buffer_size: 数据缓冲区最大帧数，超过此值会触发自动保存
             save_pointcloud: 是否保存触觉点云数据
             show_tactile: 是否在采集过程中显示触觉图像
+            save_tactile_video: 是否将触觉图像保存为视频
         """
         self.serial_1 = "136622074722"  # 全局相机序列号
         self.serial_2 = "233622071355"  # 腕部相机序列号
@@ -65,6 +67,13 @@ class DataCollector:
         self.max_buffer_size = max_buffer_size
         self.save_pointcloud = save_pointcloud  # 新增：是否保存点云数据
         self.show_tactile = show_tactile  # 新增：是否显示触觉图像
+        self.save_tactile_video = save_tactile_video  # 新增：是否保存触觉视频
+        # 视频编码器和视频输出对象（分别为两个传感器）
+        self.video_writer1 = None  # 第一个传感器的视频写入器
+        self.video_writer2 = None  # 第二个传感器的视频写入器
+        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用MP4格式
+        # 记录时间戳，用于命名视频文件
+        self.video_timestamp = None
         
         # === 修改：在 data_buffer 中添加 GelSight 数据存储键 ===
         if self.save_pointcloud:
@@ -323,39 +332,82 @@ class DataCollector:
         tac_img1 = self.gel1.get_image()
         tac_img2 = self.gel2.get_image()
         
-        # 显示触觉图像（如果需要）
-        if self.show_tactile and tac_img1 is not None and tac_img2 is not None:
-            # 制作显示用的拷贝，添加标题
+        # 处理触觉图像（显示和保存视频）
+        if tac_img1 is not None and tac_img2 is not None:
+            # 获取当前帧计数
             frame_count = len(self.data_buffer["timestamps"])
-            display_img1 = tac_img1.copy()
-            display_img2 = tac_img2.copy()
             
-            # 添加标题
-            cv2.putText(display_img1, f"GelSight 1", 
-                      (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(display_img2, f"GelSight 2", 
-                      (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            # 准备用于显示的图像
+            if self.show_tactile:
+                # 制作显示用的拷贝，添加标题
+                display_img1 = tac_img1.copy()
+                display_img2 = tac_img2.copy()
+                
+                # 添加标题
+                cv2.putText(display_img1, f"GelSight 1", 
+                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(display_img2, f"GelSight 2", 
+                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                
+                # 确保两个图像具有相同的尺寸
+                if display_img1.shape != display_img2.shape:
+                    # 调整第二个图像到与第一个相同的尺寸
+                    display_img2 = cv2.resize(display_img2, (display_img1.shape[1], display_img1.shape[0]))
+                
+                # 水平拼接两个图像
+                combined_img = np.hstack((display_img1, display_img2))
+                
+                # 在顶部添加帧计数信息
+                info_bar = np.zeros((40, combined_img.shape[1], 3), dtype=np.uint8)
+                cv2.putText(info_bar, f"Frame: {frame_count}", 
+                          (combined_img.shape[1]//2 - 60, 30), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                
+                # 垂直拼接信息栏和图像
+                final_display = np.vstack((info_bar, combined_img))
+                
+                # 显示在一个窗口中
+                cv2.imshow("GelSight Tactile Sensors", final_display)
+                cv2.waitKey(1)
             
-            # 确保两个图像具有相同的尺寸
-            if display_img1.shape != display_img2.shape:
-                # 调整第二个图像到与第一个相同的尺寸
-                display_img2 = cv2.resize(display_img2, (display_img1.shape[1], display_img1.shape[0]))
-            
-            # 水平拼接两个图像
-            combined_img = np.hstack((display_img1, display_img2))
-            
-            # 在顶部添加帧计数信息
-            info_bar = np.zeros((40, combined_img.shape[1], 3), dtype=np.uint8)
-            cv2.putText(info_bar, f"Frame: {frame_count}", 
-                      (combined_img.shape[1]//2 - 60, 30), 
-                      cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-            
-            # 垂直拼接信息栏和图像
-            final_display = np.vstack((info_bar, combined_img))
-            
-            # 显示在一个窗口中
-            cv2.imshow("GelSight Tactile Sensors", final_display)
-            cv2.waitKey(1)
+            # 处理视频保存（两个独立视频）
+            if self.save_tactile_video:
+                # 如果还没有保存时间戳，创建一个新的时间戳
+                if self.video_timestamp is None:
+                    self.video_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # 为第一个传感器初始化视频写入器
+                if self.video_writer1 is None and tac_img1 is not None:
+                    video_height, video_width = tac_img1.shape[:2]
+                    video_path1 = os.path.join(self.save_dir, f"tactile_video1_{self.video_timestamp}.mp4")
+                    self.video_writer1 = cv2.VideoWriter(
+                        video_path1, self.fourcc, self.freq, (video_width, video_height))
+                    print(f"开始录制传感器1的触觉视频到 {os.path.relpath(video_path1, os.getcwd())}")
+                
+                # 为第二个传感器初始化视频写入器
+                if self.video_writer2 is None and tac_img2 is not None:
+                    video_height, video_width = tac_img2.shape[:2]
+                    video_path2 = os.path.join(self.save_dir, f"tactile_video2_{self.video_timestamp}.mp4")
+                    self.video_writer2 = cv2.VideoWriter(
+                        video_path2, self.fourcc, self.freq, (video_width, video_height))
+                    print(f"开始录制传感器2的触觉视频到 {os.path.relpath(video_path2, os.getcwd())}")
+                
+                # 将图像帧写入各自的视频文件
+                if self.video_writer1 is not None and tac_img1 is not None:
+                    # 确保图像是彩色BGR格式
+                    if len(tac_img1.shape) == 2:  # 灰度图像
+                        tac_img1_bgr = cv2.cvtColor(tac_img1, cv2.COLOR_GRAY2BGR)
+                    else:  # 已经是彩色图像
+                        tac_img1_bgr = tac_img1.copy()
+                    self.video_writer1.write(tac_img1_bgr)
+                
+                if self.video_writer2 is not None and tac_img2 is not None:
+                    # 确保图像是彩色BGR格式
+                    if len(tac_img2.shape) == 2:  # 灰度图像
+                        tac_img2_bgr = cv2.cvtColor(tac_img2, cv2.COLOR_GRAY2BGR)
+                    else:  # 已经是彩色图像
+                        tac_img2_bgr = tac_img2.copy()
+                    self.video_writer2.write(tac_img2_bgr)
         
         # 根据配置决定是否采集点云
         if self.save_pointcloud:
@@ -501,6 +553,20 @@ class DataCollector:
         rel_filename = os.path.relpath(filename, os.getcwd())
         print(f"数据成功保存到 {rel_filename}")
         
+        # 如果在录制视频，关闭视频写入器并创建新的视频
+        if self.save_tactile_video:
+            if self.video_writer1 is not None:
+                self.video_writer1.release()
+                self.video_writer1 = None
+            
+            if self.video_writer2 is not None:
+                self.video_writer2.release()
+                self.video_writer2 = None
+                
+            print("触觉视频已保存")
+            # 重置时间戳，下次会创建新的视频文件
+            self.video_timestamp = None
+        
         # 清空缓冲区
         for key in self.data_buffer:
             self.data_buffer[key] = []
@@ -525,6 +591,16 @@ class DataCollector:
         self.is_collecting = False
         if hasattr(self, 'collection_thread') and self.collection_thread.is_alive():
             self.collection_thread.join()
+        
+        # 关闭视频写入器（如果有）
+        if self.save_tactile_video:
+            if hasattr(self, 'video_writer1') and self.video_writer1 is not None:
+                self.video_writer1.release()
+                self.video_writer1 = None
+            
+            if hasattr(self, 'video_writer2') and self.video_writer2 is not None:
+                self.video_writer2.release()
+                self.video_writer2 = None
     
     def exit(self):
         """安全退出程序"""
@@ -542,6 +618,12 @@ class DataCollector:
             self.gel1.cam.release()
         if hasattr(self, 'gel2') and hasattr(self.gel2, 'cam') and self.gel2.cam is not None:
             self.gel2.cam.release()
+        
+        # 关闭视频写入器（如果有）
+        if hasattr(self, 'video_writer1') and self.video_writer1 is not None:
+            self.video_writer1.release()
+        if hasattr(self, 'video_writer2') and self.video_writer2 is not None:
+            self.video_writer2.release()
             
         # 关闭所有OpenCV窗口
         cv2.destroyAllWindows()
@@ -657,11 +739,19 @@ def main():
     )
     show_tactile = (show_tactile_choice == "1")
     
+    # 获取用户对触觉视频保存的选择
+    save_video_choice = get_user_choice(
+        "\n是否将触觉图像保存为视频?",
+        {"1": "是，保存触觉视频", "2": "否，不保存触觉视频"}
+    )
+    save_tactile_video = (save_video_choice == "1")
+    
     # 初始化数据采集器
     collector = DataCollector(freq=freq, max_buffer_size=max_buffer_size, 
                               save_dir=save_dir,
                               save_pointcloud=save_pointcloud, 
-                              show_tactile=show_tactile)
+                              show_tactile=show_tactile,
+                              save_tactile_video=save_tactile_video)
     
     print("=========================================")
     print("    机械臂遥操作数据采集程序 (含触觉)   ")
@@ -674,6 +764,7 @@ def main():
     print(f"数据保存目录: {os.path.abspath(save_dir)}")
     print(f"保存点云: {'是' if save_pointcloud else '否'}")
     print(f"显示触觉图像: {'是' if show_tactile else '否'}")
+    print(f"保存触觉视频: {'是' if save_tactile_video else '否'}")
     
     try:
         while True:

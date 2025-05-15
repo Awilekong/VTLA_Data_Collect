@@ -1,0 +1,50 @@
+1. 启动 robot_client
+conda activate polymetis-local
+cd ~/fairo/polymetis/polymetis/python/scripts/
+python3 launch_robot.py robot_client=franka_hardware
+note:修改配置 /home/pnp/fairo/polymetis/polymetis/conf
+
+修改：robot_client/franka_hardware.yaml
+ robot_ip: "192.168.1.25"
+ limits: 
+ 
+ 2.启动gripper
+ conda activate polymetis-local
+cd ~/fairo/polymetis/polymetis/python/scripts/
+python3 launch_gripper.py gripper=franka_hand
+
+note:修改配置 /home/pnp/fairo/polymetis/polymetis/conf
+修改：gripper/franka_hand.yaml 
+    robot_ip: "192.168.1.25"
+    
+    3.启动launch_node
+    conda activate polymetis-local
+    cd ~/gello_software/experiments/
+    python3 launch_nodes.py --robot=fr3 --robot_ip=127.0.0.1 #控制主机的ip
+
+
+
+    4. 启动run_env.py
+    conda activate polymetis-local
+    cd ~/gello_software/experiments/
+    python3 run_env.py --agent=gello
+    配置：/home/pnp/gello_software/gello/agents/gello_agent.py
+    备份参数为：
+    "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FTAKC4NZ-if00-port0": DynamixelRobotConfig(
+        joint_ids=(1, 2, 3, 4, 5, 6, 7),
+        joint_offsets=(
+            0 * np.pi / 2,
+            2 * np.pi / 2,
+            2 * np.pi / 2,
+            2 * np.pi / 2,
+            2 * np.pi / 2,
+            2 * np.pi / 2,
+            5 * np.pi /4,
+        ),
+        joint_signs=(1 ,-1, 1, -1, 1, 1, 1),
+        gripper_config=(8, 116, 74),
+    ),     
+
+    
+    
+

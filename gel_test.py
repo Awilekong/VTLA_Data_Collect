@@ -24,7 +24,7 @@ def main():
 
     # 使用gsdevice.py方法连接两个GelSight传感器
     print("正在连接第一个GelSight Mini传感器...")
-    gel1 = Camera(0)
+    gel1 = Camera()
     gel1.connect()
     try:
         gel1.connect()
@@ -36,7 +36,7 @@ def main():
         sys.exit(1)
     
     print("正在连接第二个GelSight Mini传感器...")
-    gel2 = Camera(1)
+    gel2 = Camera()
     try:
         gel2.connect()
     except Exception as e:

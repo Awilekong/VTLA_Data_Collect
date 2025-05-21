@@ -124,7 +124,7 @@ class DataCollector:
         
         try:
             print("初始化 GelSight 传感器2")
-            self.gel2 = gsdevice.Camera("GelSight Mini")
+            self.gel2 = gsdevice.Camera(0)
 
             self.gel2.connect()
         except Exception as e:

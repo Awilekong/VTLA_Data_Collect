@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import setting
+from . import setting
 #import matplotlib.pyplot as plt
 from scipy.ndimage.filters import maximum_filter, minimum_filter
 from scipy import ndimage

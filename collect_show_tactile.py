@@ -112,7 +112,7 @@ class DataCollector:
         try:
             print("初始化 GelSight 传感器1")
             # 使用直接的摄像头ID而不是名称，避免重复连接到同一设备
-            self.gel1 = gsdevice.Camera(0)
+            self.gel1 = gsdevice.Camera()
 
             self.gel1.connect()
         except Exception as e:
@@ -121,7 +121,7 @@ class DataCollector:
         
         try:
             print("初始化 GelSight 传感器2")
-            self.gel2 = gsdevice.Camera("GelSight Mini")
+            self.gel2 = gsdevice.Camera()
 
             self.gel2.connect()
         except Exception as e:

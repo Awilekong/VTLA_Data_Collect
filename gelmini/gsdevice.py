@@ -86,12 +86,11 @@ def resize_crop_mini(img, imgw, imgh):
 
 
 class Camera:
-    def __init__(self, cam_num:int):
+    def __init__(self):
         # variable to store data
         self.data = None
-        self.num = cam_num
         ids = find_cameras_id()
-        self.dev_id = ids[cam_num]
+        self.dev_id = ids[0]
         self.imgw = 320 # this is for R1, R1.5 is 240
         self.imgh = 240 # this is for R1, R1.5 is 320
         self.cam = None

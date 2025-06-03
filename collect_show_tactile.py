@@ -44,17 +44,19 @@ class DataCollector:
     """机械臂遥操作数据采集器"""
     
     def __init__(self, freq=10, save_dir="./collected_data_right", 
-                 max_buffer_size=1000, save_pointcloud=True, show_tactile=False,
-                 save_tactile_video=False):
+                 max_buffer_size=1000, save_tactile_pointcloud=True, show_tactile=False,
+                 save_tactile_video=False, save_depth=False, save_realsense_pointcloud=0):
         """
         初始化数据采集器
         Args:
             freq: 采集频率 (Hz)
             save_dir: 数据保存目录
             max_buffer_size: 数据缓冲区最大帧数，超过此值会触发自动保存
-            save_pointcloud: 是否保存触觉点云数据
+            save_tactile_pointcloud: 是否保存触觉点云数据
             show_tactile: 是否在采集过程中显示触觉图像
             save_tactile_video: 是否将触觉图像保存为视频
+            save_depth: 是否保存Realsense深度图数据
+            save_realsense_pointcloud: 是否保存Realsense点云数据 (0: 不保存, 1: 保存无颜色点云, 11: 保存XYZRGB带颜色点云)
         """
         self.serial_1 = "136622074722"  # 全局相机序列号
         self.serial_2 = "233622071355"  # 腕部相机序列号
@@ -65,9 +67,11 @@ class DataCollector:
         self.is_collecting = False
         self.exit_flag = False
         self.max_buffer_size = max_buffer_size
-        self.save_pointcloud = save_pointcloud  # 新增：是否保存点云数据
-        self.show_tactile = show_tactile  # 新增：是否显示触觉图像
-        self.save_tactile_video = save_tactile_video  # 新增：是否保存触觉视频
+        self.save_tactile_pointcloud = save_tactile_pointcloud  # 是否保存触觉点云数据
+        self.show_tactile = show_tactile  # 是否显示触觉图像
+        self.save_tactile_video = save_tactile_video  # 是否保存触觉视频
+        self.save_depth = save_depth  # 是否保存Realsense深度图
+        self.save_realsense_pointcloud = save_realsense_pointcloud  # 是否保存Realsense点云数据
         # 视频编码器和视频输出对象（分别为两个传感器）
         self.video_writer1 = None  # 第一个传感器的视频写入器
         self.video_writer2 = None  # 第二个传感器的视频写入器
@@ -76,30 +80,36 @@ class DataCollector:
         self.video_timestamp = None
         
         # === 修改：在 data_buffer 中添加 GelSight 数据存储键 ===
-        if self.save_pointcloud:
-            self.data_buffer = {
-                "observation.images.image": [],
-                "observation.images.wrist_image": [],
-                "observation.state": [],
-                "observation.ee_pose": [],
-                "action": [],
-                "timestamps": [],
-                "observation.tactile.img1": [],
-                "observation.tactile.img2": [],
-                "observation.tactile.pc1": [],
-                "observation.tactile.pc2": [],
+        # 基础数据
+        self.data_buffer = {
+            "observation.images.image": [],
+            "observation.images.wrist_image": [],
+            "observation.state": [],
+            "observation.ee_pose": [],
+            "action": [],
+            "timestamps": [],
+            "observation.tactile.img1": [],
+            "observation.tactile.img2": [],
         }
-        else:
-            self.data_buffer = {
-                "observation.images.image": [],
-                "observation.images.wrist_image": [],
-                "observation.state": [],
-                "observation.ee_pose": [],
-                "action": [],
-                "timestamps": [],
-                "observation.tactile.img1": [],
-                "observation.tactile.img2": [],
-        }
+        
+        # 根据配置添加额外数据键
+        if self.save_depth:
+            self.data_buffer["observation.images.depth_image"] = []
+            self.data_buffer["observation.images.wrist_depth_image"] = []
+            
+        if self.save_tactile_pointcloud:
+            self.data_buffer["observation.tactile.pc1"] = []
+            self.data_buffer["observation.tactile.pc2"] = []
+            
+        if self.save_realsense_pointcloud == 1:
+            # 无颜色点云 (XYZ)
+            self.data_buffer["observation.images.pointcloud"] = []
+            self.data_buffer["observation.images.wrist_pointcloud"] = []
+        elif self.save_realsense_pointcloud == 11:
+            # 带颜色点云 (XYZRGB)
+            self.data_buffer["observation.images.pointcloud_xyzrgb"] = []
+            self.data_buffer["observation.images.wrist_pointcloud_xyzrgb"] = []
+        
         self.robot_ip = "192.168.1.10"     # 机械臂和夹爪的IP地址------修改为你的实际IP地址
         self.gripper_ip = "192.168.1.10"   # 机械臂和夹爪的IP地址------修改为你的实际IP地址
         # self.robot_ip = "localhost"
@@ -133,7 +143,7 @@ class DataCollector:
             sys.exit(1)
         
         # === 新增：初始化点云重建模型 ===
-        if self.save_pointcloud:
+        if self.save_tactile_pointcloud:
             print("初始化点云重建模型")
             self.mmpp = 0.0634
             # 使用当前脚本所在目录查找模型文件
@@ -168,7 +178,13 @@ class DataCollector:
         # 使用设备序列号区分全局相机
         global_config.enable_device(self.serial_1)  # 请替换为实际全局相机的序列号
         global_config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        if self.save_depth or self.save_realsense_pointcloud > 0:
+            # 启用深度流
+            global_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         self.global_cam_pipeline.start(global_config)
+        # 创建对齐对象，用于将深度帧对齐到彩色帧
+        if self.save_depth or self.save_realsense_pointcloud > 0:
+            self.global_align = rs.align(rs.stream.color)
         
         # 初始化腕部相机
         print("初始化腕部相机")
@@ -177,7 +193,13 @@ class DataCollector:
         # 使用设备序列号区分腕部相机
         wrist_config.enable_device(self.serial_2)  # 请替换为实际腕部相机的序列号
         wrist_config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        if self.save_depth or self.save_realsense_pointcloud > 0:
+            # 启用深度流
+            wrist_config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
         self.wrist_cam_pipeline.start(wrist_config)
+        # 创建对齐对象，用于将深度帧对齐到彩色帧
+        if self.save_depth or self.save_realsense_pointcloud > 0:
+            self.wrist_align = rs.align(rs.stream.color)
         
     def _signal_handler(self, sig, frame):
         """处理中断信号，确保数据完整性"""
@@ -191,6 +213,11 @@ class DataCollector:
             numpy.ndarray: 形状为(256, 256, 3)的RGB图像
         """
         frames = self.global_cam_pipeline.wait_for_frames()
+        
+        # 如果需要深度图，先对齐深度帧和彩色帧
+        if self.save_depth:
+            frames = self.global_align.process(frames)
+            
         # 获取彩色图像帧
         color_frame = frames.get_color_frame()
         
@@ -205,6 +232,37 @@ class DataCollector:
         
         return color_image
     
+    def _get_global_camera_depth(self):
+        """获取全局相机校正后的深度图
+        
+        Returns:
+            numpy.ndarray: 形状为(256, 256)的深度图，单位为毫米
+        """
+        if not self.save_depth:
+            return np.zeros((256, 256), dtype=np.float32)
+            
+        frames = self.global_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.global_align.process(frames)
+        
+        # 获取对齐后的深度帧
+        depth_frame = aligned_frames.get_depth_frame()
+        
+        if not depth_frame:
+            return np.zeros((256, 256), dtype=np.float32)
+        
+        # 转换为numpy数组
+        depth_image = np.asanyarray(depth_frame.get_data())
+        
+        # 将图像缩放到256x256
+        depth_image = cv2.resize(depth_image, (256, 256), interpolation=cv2.INTER_NEAREST)
+        
+        # 转换为float32类型，单位为毫米
+        depth_image = depth_image.astype(np.float32)
+        
+        return depth_image
+    
     def _get_wrist_camera_image(self):
         """获取腕部相机(Realsense)图像
         
@@ -212,6 +270,11 @@ class DataCollector:
             numpy.ndarray: 形状为(256, 256, 3)的RGB图像
         """
         frames = self.wrist_cam_pipeline.wait_for_frames()
+        
+        # 如果需要深度图，先对齐深度帧和彩色帧
+        if self.save_depth:
+            frames = self.wrist_align.process(frames)
+            
         # 获取彩色图像帧
         color_frame = frames.get_color_frame()
         
@@ -225,6 +288,37 @@ class DataCollector:
         color_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB)
         
         return color_image
+    
+    def _get_wrist_camera_depth(self):
+        """获取腕部相机校正后的深度图
+        
+        Returns:
+            numpy.ndarray: 形状为(256, 256)的深度图，单位为毫米
+        """
+        if not self.save_depth:
+            return np.zeros((256, 256), dtype=np.float32)
+            
+        frames = self.wrist_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.wrist_align.process(frames)
+        
+        # 获取对齐后的深度帧
+        depth_frame = aligned_frames.get_depth_frame()
+        
+        if not depth_frame:
+            return np.zeros((256, 256), dtype=np.float32)
+        
+        # 转换为numpy数组
+        depth_image = np.asanyarray(depth_frame.get_data())
+        
+        # 将图像缩放到256x256
+        depth_image = cv2.resize(depth_image, (256, 256), interpolation=cv2.INTER_NEAREST)
+        
+        # 转换为float32类型，单位为毫米
+        depth_image = depth_image.astype(np.float32)
+        
+        return depth_image
     
     def _get_robot_state(self):
         """获取机械臂的关节角和夹爪宽度
@@ -316,6 +410,188 @@ class DataCollector:
 
         return vis.points.copy()
     
+    def _get_global_camera_pointcloud(self):
+        """获取全局相机点云数据
+        
+        Returns:
+            numpy.ndarray: 点云数据，形状为(N,3)的numpy数组
+        """
+        if self.save_realsense_pointcloud == 0:
+            return np.zeros((0, 3), dtype=np.float32)
+            
+        # 获取帧
+        frames = self.global_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.global_align.process(frames)
+        
+        # 获取对齐后的深度帧
+        depth_frame = aligned_frames.get_depth_frame()
+        
+        if not depth_frame:
+            return np.zeros((0, 3), dtype=np.float32)
+        
+        # 创建点云
+        pc = rs.pointcloud()
+        
+        # 从深度帧计算点云
+        points = pc.calculate(depth_frame)
+        
+        # 获取顶点数据
+        vertices = np.asanyarray(points.get_vertices())
+        vertices = vertices.view(np.float32).reshape(-1, 3)  # 转换为N×3的numpy数组
+        
+        return vertices
+    
+    def _get_wrist_camera_pointcloud(self):
+        """获取腕部相机点云数据
+        
+        Returns:
+            numpy.ndarray: 点云数据，形状为(N,3)的numpy数组
+        """
+        if self.save_realsense_pointcloud == 0:
+            return np.zeros((0, 3), dtype=np.float32)
+            
+        # 获取帧
+        frames = self.wrist_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.wrist_align.process(frames)
+        
+        # 获取对齐后的深度帧
+        depth_frame = aligned_frames.get_depth_frame()
+        
+        if not depth_frame:
+            return np.zeros((0, 3), dtype=np.float32)
+        
+        # 创建点云
+        pc = rs.pointcloud()
+        
+        # 从深度帧计算点云
+        points = pc.calculate(depth_frame)
+        
+        # 获取顶点数据
+        vertices = np.asanyarray(points.get_vertices())
+        vertices = vertices.view(np.float32).reshape(-1, 3)  # 转换为N×3的numpy数组
+        
+        return vertices
+    
+    def _get_global_camera_pointcloud_xyzrgb(self):
+        """获取全局相机带颜色的点云数据 (XYZRGB)
+        
+        Returns:
+            numpy.ndarray: 带颜色点云数据，形状为(N,6)的numpy数组，每行为[x,y,z,r,g,b]
+        """
+        if self.save_realsense_pointcloud != 11:
+            return np.zeros((0, 6), dtype=np.float32)
+            
+        # 获取帧
+        frames = self.global_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.global_align.process(frames)
+        
+        # 获取对齐后的深度帧和彩色帧
+        depth_frame = aligned_frames.get_depth_frame()
+        color_frame = aligned_frames.get_color_frame()
+        
+        if not depth_frame or not color_frame:
+            return np.zeros((0, 6), dtype=np.float32)
+        
+        # 创建点云
+        pc = rs.pointcloud()
+        
+        # 设置纹理映射
+        pc.map_to(color_frame)
+        
+        # 从深度帧计算点云
+        points = pc.calculate(depth_frame)
+        
+        # 获取顶点数据
+        vertices = np.asanyarray(points.get_vertices())
+        vertices = vertices.view(np.float32).reshape(-1, 3)  # 转换为N×3的numpy数组
+        
+        # 获取纹理坐标
+        textures = np.asanyarray(points.get_texture_coordinates())
+        textures = textures.view(np.float32).reshape(-1, 2)  # 转换为N×2的numpy数组
+        
+        # 获取彩色图像
+        color_image = np.asanyarray(color_frame.get_data())
+        
+        # 计算每个点的颜色
+        h, w = color_image.shape[:2]
+        colors = np.zeros((vertices.shape[0], 3), dtype=np.uint8)
+        for i, (u, v) in enumerate(textures):
+            if 0 <= u <= 1 and 0 <= v <= 1:
+                x = min(int(u * w), w - 1)
+                y = min(int(v * h), h - 1)
+                colors[i] = color_image[y, x]
+        
+        # 创建XYZRGB格式的点云 (N,6)
+        xyzrgb = np.zeros((vertices.shape[0], 6), dtype=np.float32)
+        xyzrgb[:, 0:3] = vertices  # XYZ
+        xyzrgb[:, 3:6] = colors.astype(np.float32) / 255.0  # RGB (归一化到0-1)
+        
+        return xyzrgb
+    
+    def _get_wrist_camera_pointcloud_xyzrgb(self):
+        """获取腕部相机带颜色的点云数据 (XYZRGB)
+        
+        Returns:
+            numpy.ndarray: 带颜色点云数据，形状为(N,6)的numpy数组，每行为[x,y,z,r,g,b]
+        """
+        if self.save_realsense_pointcloud != 11:
+            return np.zeros((0, 6), dtype=np.float32)
+            
+        # 获取帧
+        frames = self.wrist_cam_pipeline.wait_for_frames()
+        
+        # 对齐深度帧和彩色帧
+        aligned_frames = self.wrist_align.process(frames)
+        
+        # 获取对齐后的深度帧和彩色帧
+        depth_frame = aligned_frames.get_depth_frame()
+        color_frame = aligned_frames.get_color_frame()
+        
+        if not depth_frame or not color_frame:
+            return np.zeros((0, 6), dtype=np.float32)
+        
+        # 创建点云
+        pc = rs.pointcloud()
+        
+        # 设置纹理映射
+        pc.map_to(color_frame)
+        
+        # 从深度帧计算点云
+        points = pc.calculate(depth_frame)
+        
+        # 获取顶点数据
+        vertices = np.asanyarray(points.get_vertices())
+        vertices = vertices.view(np.float32).reshape(-1, 3)  # 转换为N×3的numpy数组
+        
+        # 获取纹理坐标
+        textures = np.asanyarray(points.get_texture_coordinates())
+        textures = textures.view(np.float32).reshape(-1, 2)  # 转换为N×2的numpy数组
+        
+        # 获取彩色图像
+        color_image = np.asanyarray(color_frame.get_data())
+        
+        # 计算每个点的颜色
+        h, w = color_image.shape[:2]
+        colors = np.zeros((vertices.shape[0], 3), dtype=np.uint8)
+        for i, (u, v) in enumerate(textures):
+            if 0 <= u <= 1 and 0 <= v <= 1:
+                x = min(int(u * w), w - 1)
+                y = min(int(v * h), h - 1)
+                colors[i] = color_image[y, x]
+        
+        # 创建XYZRGB格式的点云 (N,6)
+        xyzrgb = np.zeros((vertices.shape[0], 6), dtype=np.float32)
+        xyzrgb[:, 0:3] = vertices  # XYZ
+        xyzrgb[:, 3:6] = colors.astype(np.float32) / 255.0  # RGB (归一化到0-1)
+        
+        return xyzrgb
+    
     def _collect_data_point(self):
         """采集一帧数据"""
         # 检查缓冲区大小，如果超过最大限制，自动保存数据
@@ -330,6 +606,31 @@ class DataCollector:
         robot_ee_pose = self._get_robot_ee_pose()
         robot_desired_action = self._get_robot_desired_action()
         timestamp = time.time()
+        
+        # 获取Realsense深度图（如果启用）
+        if self.save_depth:
+            global_depth = self._get_global_camera_depth()
+            wrist_depth = self._get_wrist_camera_depth()
+            self.data_buffer["observation.images.depth_image"].append(global_depth)
+            self.data_buffer["observation.images.wrist_depth_image"].append(wrist_depth)
+        
+        # 获取Realsense点云（如果启用）
+        if self.save_realsense_pointcloud > 0:
+            # 根据选项决定采集普通点云还是带颜色的点云
+            if self.save_realsense_pointcloud == 1:
+                # 采集无颜色点云
+                global_pc = self._get_global_camera_pointcloud()
+                self.data_buffer["observation.images.pointcloud"].append(global_pc)
+                
+                wrist_pc = self._get_wrist_camera_pointcloud()
+                self.data_buffer["observation.images.wrist_pointcloud"].append(wrist_pc)
+            elif self.save_realsense_pointcloud == 11:
+                # 采集带颜色XYZRGB点云
+                global_pc_xyzrgb = self._get_global_camera_pointcloud_xyzrgb()
+                self.data_buffer["observation.images.pointcloud_xyzrgb"].append(global_pc_xyzrgb)
+                
+                wrist_pc_xyzrgb = self._get_wrist_camera_pointcloud_xyzrgb()
+                self.data_buffer["observation.images.wrist_pointcloud_xyzrgb"].append(wrist_pc_xyzrgb)
         
         # === 采集触觉图像和点云 ===
         # 采集两个传感器的数据
@@ -414,7 +715,7 @@ class DataCollector:
                     self.video_writer2.write(tac_img2_bgr)
         
         # 根据配置决定是否采集点云
-        if self.save_pointcloud:
+        if self.save_tactile_pointcloud:
             # 采集第一个传感器的点云
             tac_pc1 = self._get_gelsight_pointcloud(self.gel1, 1)
             self.data_buffer["observation.tactile.pc1"].append(tac_pc1)
@@ -511,6 +812,20 @@ class DataCollector:
                             compression="gzip", 
                             compression_opts=4)
             
+            # === 保存深度图数据（如果有） ===
+            if self.save_depth:
+                f.create_dataset("observation.images.depth_image", 
+                               data=np.array(self.data_buffer["observation.images.depth_image"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+                
+                f.create_dataset("observation.images.wrist_depth_image", 
+                               data=np.array(self.data_buffer["observation.images.wrist_depth_image"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+            
             # 保存机械臂状态
             f.create_dataset("observation.state", 
                             data=np.array(self.data_buffer["observation.state"]),
@@ -540,7 +855,7 @@ class DataCollector:
                            compression_opts=4)
             
             # === 保存触觉点云数据（如果有） ===
-            if self.save_pointcloud:
+            if self.save_tactile_pointcloud:
                 f.create_dataset("observation.tactile.pc1", 
                                data=np.array(self.data_buffer["observation.tactile.pc1"]),
                                dtype='float32',
@@ -549,6 +864,35 @@ class DataCollector:
                 
                 f.create_dataset("observation.tactile.pc2", 
                                data=np.array(self.data_buffer["observation.tactile.pc2"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+            
+            # === 保存Realsense点云数据（如果有） ===
+            if self.save_realsense_pointcloud == 1:
+                # 保存普通点云数据 (XYZ)
+                f.create_dataset("observation.images.pointcloud", 
+                               data=np.array(self.data_buffer["observation.images.pointcloud"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+                
+                f.create_dataset("observation.images.wrist_pointcloud", 
+                               data=np.array(self.data_buffer["observation.images.wrist_pointcloud"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+            
+            if self.save_realsense_pointcloud == 11:
+                # 保存带颜色的点云数据 (XYZRGB)
+                f.create_dataset("observation.images.pointcloud_xyzrgb", 
+                               data=np.array(self.data_buffer["observation.images.pointcloud_xyzrgb"]),
+                               dtype='float32',
+                               compression="gzip", 
+                               compression_opts=4)
+                
+                f.create_dataset("observation.images.wrist_pointcloud_xyzrgb", 
+                               data=np.array(self.data_buffer["observation.images.wrist_pointcloud_xyzrgb"]),
                                dtype='float32',
                                compression="gzip", 
                                compression_opts=4)
@@ -731,10 +1075,10 @@ def main():
     
     # 获取用户对点云保存的选择
     save_pc_choice = get_user_choice(
-        "\n是否保存触觉点云数据? (点云数据会占用较大存储空间)",
-        {"1": "是，保存点云数据", "2": "否，不保存点云数据"}
+        "\n是否保存触觉传感器点云数据? (触觉点云数据会占用较大存储空间)",
+        {"1": "是，保存触觉点云数据", "2": "否，不保存触觉点云数据"}
     )
-    save_pointcloud = (save_pc_choice == "1")
+    save_tactile_pointcloud = (save_pc_choice == "1")
     
     # 获取用户对实时显示的选择
     show_tactile_choice = get_user_choice(
@@ -750,12 +1094,28 @@ def main():
     )
     save_tactile_video = (save_video_choice == "1")
     
+    # 获取用户对深度图保存的选择
+    save_depth_choice = get_user_choice(
+        "\n是否保存Realsense RGB-D深度图数据?",
+        {"1": "是，保存RGB对齐的深度图", "2": "否，不保存深度图"}
+    )
+    save_depth = (save_depth_choice == "1")
+    
+    # 获取用户对Realsense点云保存的选择
+    save_realsense_pointcloud_choice = get_user_choice(
+        "\n是否保存Realsense点云数据? (0: 不保存, 1: 保存无颜色点云, 11: 保存XYZRGB带颜色点云)",
+        {"0": "不保存Realsense点云数据", "1": "保存无颜色点云", "11": "保存XYZRGB带颜色点云"}
+    )
+    save_realsense_pointcloud = int(save_realsense_pointcloud_choice)
+    
     # 初始化数据采集器
     collector = DataCollector(freq=freq, max_buffer_size=max_buffer_size, 
                               save_dir=save_dir,
-                              save_pointcloud=save_pointcloud, 
+                              save_tactile_pointcloud=save_tactile_pointcloud, 
                               show_tactile=show_tactile,
-                              save_tactile_video=save_tactile_video)
+                              save_tactile_video=save_tactile_video,
+                              save_depth=save_depth,
+                              save_realsense_pointcloud=save_realsense_pointcloud)
     
     print("=========================================")
     print("    机械臂遥操作数据采集程序 (含触觉)   ")
@@ -766,9 +1126,16 @@ def main():
     print(f"采集频率设置为{freq}Hz，数据将保存为HDF5格式")
     print(f"缓冲区限制: {max_buffer_size}帧 (约{max_buffer_size/freq:.1f}秒数据)")
     print(f"数据保存目录: {os.path.abspath(save_dir)}")
-    print(f"保存点云: {'是' if save_pointcloud else '否'}")
+    print(f"保存触觉点云: {'是' if save_tactile_pointcloud else '否'}")
+    print(f"保存Realsense深度图: {'是' if save_depth else '否'}")
     print(f"显示触觉图像: {'是' if show_tactile else '否'}")
     print(f"保存触觉视频: {'是' if save_tactile_video else '否'}")
+    if save_realsense_pointcloud == 0:
+        print("保存Realsense点云: 否")
+    elif save_realsense_pointcloud == 1:
+        print("保存Realsense点云: 是 (无颜色)")
+    elif save_realsense_pointcloud == 11:
+        print("保存Realsense点云: 是 (XYZRGB带颜色)")
     
     try:
         while True:

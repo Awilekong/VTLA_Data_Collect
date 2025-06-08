@@ -20,7 +20,7 @@ def find_cameras_id():
     if os.name == 'nt':
         cameras = find_cameras_windows()
         return cameras
-    i = 10
+    i = 16
     while i >= 0:
         cap = cv2.VideoCapture(index)
         if cap.read()[0]:

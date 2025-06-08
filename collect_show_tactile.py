@@ -45,7 +45,8 @@ class DataCollector:
     
     def __init__(self, freq=10, save_dir="./collected_data_right", 
                  max_buffer_size=1000, save_tactile_pointcloud=True, show_tactile=False,
-                 save_tactile_video=False, save_depth=False, save_realsense_pointcloud=2):
+                 save_tactile_video=False, save_depth=False, save_realsense_pointcloud=2,
+                 task_description=""):
         """
         初始化数据采集器
         Args:
@@ -57,6 +58,7 @@ class DataCollector:
             save_tactile_video: 是否将触觉图像保存为视频
             save_depth: 是否保存Realsense深度图数据
             save_realsense_pointcloud: 是否保存Realsense点云数据 (0: 不保存, 1: 保存无颜色点云, 11: 保存XYZRGB带颜色点云)
+            task_description: 任务描述字符串
         """
         self.serial_1 = "136622074722"  # 全局相机序列号
         self.serial_2 = "233622071355"  # 腕部相机序列号
@@ -78,6 +80,7 @@ class DataCollector:
         self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用MP4格式
         # 记录时间戳，用于命名视频文件
         self.video_timestamp = None
+        self.task_description = task_description
         
         # === 修改：在 data_buffer 中添加 GelSight 数据存储键 ===
         # 基础数据
@@ -869,6 +872,9 @@ class DataCollector:
         
         # 保存HDF5格式的数据
         with h5py.File(filename, 'w') as f:
+            #保存任务描述
+            f.create_dataset("task_description",
+                             data=np.array([self.task_description], dtype=h5py.special_dtype(vlen=str)))
             # 保存时间戳
             f.create_dataset("timestamps", 
                             data=np.array(self.data_buffer["timestamps"]))
@@ -1148,6 +1154,8 @@ def main():
     # 设置默认保存目录
     save_dir = "/home/ubuntu/workspace/data/collected_data"
     
+    task_description = "Pick up the ring and put it on the upright wooden stick."
+    
     # 获取用户对点云保存的选择
     save_pc_choice = get_user_choice(
         "\n是否保存触觉传感器点云数据? (触觉点云数据会占用较大存储空间)",
@@ -1191,7 +1199,8 @@ def main():
                               show_tactile=show_tactile,
                               save_tactile_video=save_tactile_video,
                               save_depth=save_depth,
-                              save_realsense_pointcloud=save_realsense_pointcloud)
+                              save_realsense_pointcloud=save_realsense_pointcloud,
+                              task_description=task_description)
     
     print("=========================================")
     print("    机械臂遥操作数据采集程序 (含触觉)   ")
@@ -1212,7 +1221,8 @@ def main():
         print("保存Realsense点云: 是 (有颜色)")
     elif save_realsense_pointcloud == 2:
         print("不保存Realsense点云")
-    
+    print("task_description:", task_description)
+    print("=========================================")
     try:
         while True:
             # 等待空格键开始采集
